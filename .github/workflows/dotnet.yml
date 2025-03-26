@@ -18,17 +18,14 @@ jobs:
       with:
         dotnet-version: 9.0.x
 
-    - name: cd 
-      run: cd Merger-exporter
-
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore .\Merger.sln
 
     - name: Build
-      run: dotnet build --configuration Release --no-restore
+      run: dotnet build --configuration Release --no-restore .\Merger.sln
 
     - name: Publish
-      run: dotnet publish -c Release -o publish
+      run: dotnet publish -c Release -o publish .\Merger.sln
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
