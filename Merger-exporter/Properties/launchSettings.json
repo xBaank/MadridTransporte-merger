@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Merger-exporter": {
+      "commandName": "Project",
+      "commandLineArgs": "--destination-folder D:\\Games\\output"
+    }
+  }
+}
