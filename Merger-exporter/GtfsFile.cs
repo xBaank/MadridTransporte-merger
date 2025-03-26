@@ -9,6 +9,7 @@ internal class GtfsFile(string name, Stream stream) : IAsyncDisposable
 
     private readonly List<FileInfo> _tempFiles = [];
     private readonly List<string> _tempFolders = [];
+    private readonly List<IAsyncDisposable> _disposables = [];
 
     private async ValueTask<FileInfo> DownloadAsync(CancellationToken cancellationToken)
     {
@@ -54,6 +55,7 @@ internal class GtfsFile(string name, Stream stream) : IAsyncDisposable
 
                     using var fileStream = File.Open(subGtfsFile, FileMode.Open);
                     var gtfsFile = new GtfsFile(Path.GetFileName(subGtfsFile), fileStream);
+                    _disposables.Add(gtfsFile);
                     await foreach (var item in gtfsFile.GetFoldersFilesAsync(cancellationToken))
                     {
                         yield return item;
@@ -79,6 +81,10 @@ internal class GtfsFile(string name, Stream stream) : IAsyncDisposable
         foreach (var folder in _tempFolders)
         {
             Directory.Delete(folder, true);
+        }
+        foreach (var item in _disposables)
+        {
+            await item.DisposeAsync();
         }
         await stream.DisposeAsync();
     }
