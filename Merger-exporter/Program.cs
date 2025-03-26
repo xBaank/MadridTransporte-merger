@@ -1,10 +1,7 @@
 ﻿using System.IO.Compression;
 using System.Runtime.CompilerServices;
-
 using ConsoleAppFramework;
-
 using Merger_exporter;
-
 using nietras.SeparatedValues;
 
 List<(string name, string url)> gtfsFilesUrls =
@@ -159,11 +156,27 @@ await ConsoleApp.RunAsync(
             await Task.WhenAll(downloadTasks);
 
             var path = Path.Combine(destinationFolder, otherTramFiles.name + ".csv");
-            await using var writer = Sep.Writer(o => o with { Sep = new Sep(',') }).ToFile(path);
+            await using var writer = Sep.Writer(o =>
+                    o with
+                    {
+                        Sep = new Sep(','),
+                        Escape = true,
+                        WriteHeader = true
+                    }
+                )
+                .ToFile(path);
             var set = new HashSet<string>();
             foreach (var tempFile in tempFiles)
             {
-                using var reader = await Sep.Reader().FromFileAsync(tempFile.FullName, token);
+                using var reader = await Sep.Reader(o =>
+                        o with
+                        {
+                            HasHeader = true,
+                            DisableQuotesParsing = true,
+                            Unescape = true
+                        }
+                    )
+                    .FromFileAsync(tempFile.FullName, token);
                 await foreach (var row in reader)
                 {
                     var id = row["IDESTACION"].ToString();
