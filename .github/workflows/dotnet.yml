@@ -34,7 +34,7 @@ jobs:
       run: dotnet build --configuration Release --no-restore /p:Version=${{ env.VERSION }} Merger.sln
 
     - name: Publish
-      run: dotnet publish -c Release -o publish /p:Version=${{ env.VERSION }} Merger.sln
+      run: dotnet publish -c Release /p:Version=${{ env.VERSION }} Merger.sln
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
