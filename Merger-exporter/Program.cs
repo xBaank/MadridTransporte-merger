@@ -39,7 +39,7 @@ List<(string name, string url)> otherFiles =
         "https://hub.arcgis.com/api/download/v1/items/0a6c45e7bdd94679b67a2ae662c8838b/csv?redirect=true&layers=0"
     ),
     (
-        "Tren_stations",
+        "Train_stations",
         "https://hub.arcgis.com/api/download/v1/items/9e353bbf4c5d4bea87f01d6d579d06ab/csv?redirect=true&layers=0"
     ),
     (
@@ -49,7 +49,7 @@ List<(string name, string url)> otherFiles =
 ];
 
 (string name, string url, int[] layers) otherTramFiles = (
-    "tram_stations",
+    "Tram_stations",
     "https://hub.arcgis.com/api/download/v1/items/b56d0a20a21d4b7eb1721d9f328ea3ae/csv?redirect=true&layers=replace",
     [2, 6, 11, 15, 20, 24, 29, 33]
 );
@@ -84,7 +84,7 @@ await ConsoleApp.RunAsync(
 
             foreach (var item in gtfsFiles)
             {
-                var task = Task.Run(
+                var gtfsFilesTask = Task.Run(
                     async () =>
                     {
                         var files = await item.GetFoldersFilesAsync(token)
@@ -113,23 +113,55 @@ await ConsoleApp.RunAsync(
                     },
                     token
                 );
-                tasks.Add(task);
+                tasks.Add(gtfsFilesTask);
             }
 
             foreach (var (name, url) in otherFiles)
             {
-                var task = Task.Run(
+                var otherFilesTask = Task.Run(
                     async () =>
                     {
                         Console.WriteLine($"Downloading {name}");
                         var path = Path.Combine(destinationFolder, name + ".csv");
                         using var fileStream = await httpClient.GetStreamAsync(url, token);
-                        using var file = File.Create(path);
-                        await fileStream.CopyToAsync(file);
+                        Console.WriteLine($"Downloaded {name}");
+
+                        using var reader = await Sep.Reader(o =>
+                                o with
+                                {
+                                    HasHeader = true,
+                                    Unescape = true,
+                                    DisableColCountCheck = true,
+                                }
+                            )
+                            .FromAsync(fileStream, token);
+
+                        await using var writer = Sep.Writer(o =>
+                                o with
+                                {
+                                    Sep = new Sep(','),
+                                    WriteHeader = true,
+                                    ColNotSetOption = SepColNotSetOption.Empty,
+                                    Escape = true
+                                }
+                            )
+                            .ToFile(path);
+
+                        var header = reader.Header;
+
+                        await foreach (var row in reader)
+                        {
+                            using var newRow = writer.NewRow(row);
+                            if (header.ColNames.Contains("OBSERVACIONES"))
+                            {
+                                var data = row["OBSERVACIONES"].ToString();
+                                newRow["OBSERVACIONES"].Set(data.Replace("\r\n", " "));
+                            }
+                        }
                     },
                     token
                 );
-                tasks.Add(task);
+                tasks.Add(otherFilesTask);
             }
 
             List<Task> downloadTasks = [];
@@ -155,39 +187,47 @@ await ConsoleApp.RunAsync(
 
             await Task.WhenAll(downloadTasks);
 
-            var path = Path.Combine(destinationFolder, otherTramFiles.name + ".csv");
-            await using var writer = Sep.Writer(o =>
-                    o with
-                    {
-                        Sep = new Sep(','),
-                        Escape = true,
-                        WriteHeader = true
-                    }
-                )
-                .ToFile(path);
-            var set = new HashSet<string>();
-            foreach (var tempFile in tempFiles)
-            {
-                using var reader = await Sep.Reader(o =>
-                        o with
-                        {
-                            HasHeader = true,
-                            DisableQuotesParsing = true,
-                            Unescape = true
-                        }
-                    )
-                    .FromFileAsync(tempFile.FullName, token);
-                await foreach (var row in reader)
+            var otherTramFilesTask = Task.Run(
+                async () =>
                 {
-                    var id = row["IDESTACION"].ToString();
-                    if (!set.Add(id))
+                    var path = Path.Combine(destinationFolder, otherTramFiles.name + ".csv");
+                    await using var writer = Sep.Writer(o =>
+                            o with
+                            {
+                                Sep = new Sep(','),
+                                Escape = true,
+                                WriteHeader = true
+                            }
+                        )
+                        .ToFile(path);
+                    var set = new HashSet<string>();
+                    foreach (var tempFile in tempFiles)
                     {
-                        continue;
+                        using var reader = await Sep.Reader(o =>
+                                o with
+                                {
+                                    HasHeader = true,
+                                    DisableQuotesParsing = true,
+                                    Unescape = true
+                                }
+                            )
+                            .FromFileAsync(tempFile.FullName, token);
+                        await foreach (var row in reader)
+                        {
+                            var id = row["IDESTACION"].ToString();
+                            if (!set.Add(id))
+                            {
+                                continue;
+                            }
+                            using var _ = writer.NewRow(row);
+                        }
+                        await writer.FlushAsync(token);
                     }
-                    using var _ = writer.NewRow(row);
-                }
-                await writer.FlushAsync(token);
-            }
+                },
+                token
+            );
+
+            tasks.Add(otherTramFilesTask);
 
             await Task.WhenAll(tasks);
         }
