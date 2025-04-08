@@ -34,7 +34,7 @@ jobs:
       run: dotnet publish -c Release --os linux -o publish/linux /p:Version=${{ env.VERSION }} Merger.sln
       
     - name: Publish windows
-      run: dotnet publish -c Release --os win-x64 -o publish/win /p:Version=${{ env.VERSION }} Merger.sln
+      run: dotnet publish -c Release --os win -o publish/win /p:Version=${{ env.VERSION }} Merger.sln
       
     - name: Publish osx
       run: dotnet publish -c Release --os osx-x64 -o publish/osx /p:Version=${{ env.VERSION }} Merger.sln
