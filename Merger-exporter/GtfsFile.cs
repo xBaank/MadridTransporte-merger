@@ -41,39 +41,60 @@ internal class GtfsFile(string name, Stream stream) : IAsyncDisposable
     )
     {
         var tempFolder = await UnzipFiles(cancellationToken);
-        foreach (var entry in Directory.EnumerateFileSystemEntries(tempFolder))
+        var entries = Directory.GetFileSystemEntries(tempFolder);
+
+        if (entries.Length != 0 && entries.All(i => Path.GetExtension(i) == ".zip"))
         {
-            if (Directory.Exists(entry))
+            await foreach (var item in ExtractSubGtfsFolders(tempFolder, cancellationToken))
             {
-                Console.WriteLine($"Folder: {entry}");
+                yield return item;
+            }
+            yield break;
+        }
 
-                //Extract subGtfsFiles
-                foreach (var subGtfsFile in Directory.EnumerateFiles(entry))
+        foreach (var fileOrFolder in entries)
+        {
+            if (Directory.Exists(fileOrFolder))
+            {
+                await foreach (var item in ExtractSubGtfsFolders(fileOrFolder, cancellationToken))
                 {
-                    if (Path.GetExtension(subGtfsFile) != ".zip")
-                        continue;
-
-                    using var fileStream = File.Open(subGtfsFile, FileMode.Open);
-                    var gtfsFile = new GtfsFile(Path.GetFileName(subGtfsFile), fileStream);
-                    _disposables.Add(gtfsFile);
-                    await foreach (var item in gtfsFile.GetFoldersFilesAsync(cancellationToken))
-                    {
-                        yield return item;
-                    }
+                    yield return item;
                 }
             }
-            else if (File.Exists(entry))
+            else if (File.Exists(fileOrFolder))
             {
                 //Leave as it is
-                Console.WriteLine($"File: {entry}");
-                yield return entry;
+                Console.WriteLine($"File: {fileOrFolder}");
+                yield return fileOrFolder;
+            }
+        }
+    }
+
+    private async IAsyncEnumerable<string> ExtractSubGtfsFolders(
+        string fileOrFolder,
+        [EnumeratorCancellation] CancellationToken cancellationToken
+    )
+    {
+        Console.WriteLine($"Folder: {fileOrFolder}");
+
+        //Extract subGtfsFiles
+        foreach (var subGtfsFile in Directory.EnumerateFiles(fileOrFolder))
+        {
+            if (Path.GetExtension(subGtfsFile) != ".zip")
+                continue;
+
+            using var fileStream = File.Open(subGtfsFile, FileMode.Open);
+            var gtfsFile = new GtfsFile(Path.GetFileName(subGtfsFile), fileStream);
+            _disposables.Add(gtfsFile);
+            await foreach (var item in gtfsFile.GetFoldersFilesAsync(cancellationToken))
+            {
+                yield return item;
             }
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        Console.WriteLine("Disposing...");
         foreach (var file in _tempFiles)
         {
             file.Delete();
