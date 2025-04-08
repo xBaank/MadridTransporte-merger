@@ -9,45 +9,41 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-    - uses: actions/checkout@4
-    
+    - uses: actions/checkout@v4
+
+    - name: Extract Version from Tag
+      id: get_version
+      run: |
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        else
+          echo "VERSION=0.0.1" >> $GITHUB_ENV  # Default version for non-tag builds
+        fi
+
     - name: Setup .NET
-      uses: actions/setup-dotnet@4
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x'
+        dotnet-version: 9.0.x
 
     - name: Restore dependencies
       run: dotnet restore Merger.sln
 
-    - name: Build for Linux
+    - name: Build
       run: dotnet build --configuration Release --no-restore /p:Version=${{ env.VERSION }} Merger.sln
 
-    - name: Publish for Linux
-      run: dotnet publish -c Release --os linux -o publish/linux /p:Version=${{ env.VERSION }} Merger.sln
-      
-    - name: Build for Windows
-      run: dotnet build --configuration Release --no-restore /p:Version=${{ env.VERSION }} Merger.sln
-
-    - name: Publish for Windows
-      run: dotnet publish -c Release --os win -o publish/win /p:Version=${{ env.VERSION }} Merger.sln
-
-    - name: Build for macOS
-      run: dotnet build --configuration Release --no-restore /p:Version=${{ env.VERSION }} Merger.sln
-
-    - name: Publish for macOS
-      run: dotnet publish -c Release --os osx-x64 -o publish/osx /p:Version=${{ env.VERSION }} Merger.sln
+    - name: Publish
+      run: dotnet publish -c Release -o publish /p:Version=${{ env.VERSION }} Merger.sln
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: dotnet-build
-        path: |
-          publish/linux
-          publish/win
-          publish/osx
+        name: dotnet-build-${{ matrix.os }}
+        path: publish
 
   release:
     needs: build
@@ -56,20 +52,39 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Download Artifact
+    - name: Download Artifacts
       uses: actions/download-artifact@v4
       with:
-        name: dotnet-build
-        path: publish
+        name: dotnet-build-ubuntu-latest
+        path: publish/ubuntu
+      continue-on-error: true
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: dotnet-build-windows-latest
+        path: publish/windows
+      continue-on-error: true
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: dotnet-build-macos-latest
+        path: publish/macos
+      continue-on-error: true
 
     - name: Archive Release
-      run: zip -r release.zip publish
+      run: |
+        zip -r release-ubuntu.zip publish/ubuntu
+        zip -r release-windows.zip publish/windows
+        zip -r release-macos.zip publish/macos
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.VERSION }}
         name: Release ${{ env.VERSION }}
-        files: release.zip
+        files: |
+          release-ubuntu.zip
+          release-windows.zip
+          release-macos.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
