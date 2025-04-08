@@ -16,10 +16,21 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Extract Version from Tag
-      id: get_version
+    - name: Extract Version from Tag (Unix)
+      id: get_version_unix
+      if: ${{ matrix.os != 'windows-latest' }}
       run: |
         if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        else
+          echo "VERSION=0.0.1" >> $GITHUB_ENV  # Default version for non-tag builds
+        fi
+
+    - name: Extract Version from Tag (Windows)
+      id: get_version_windows
+      if: ${{ matrix.os == 'windows-latest' }}
+      run: |
+        if (${GITHUB_REF} == refs/tags/*); then
           echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
         else
           echo "VERSION=0.0.1" >> $GITHUB_ENV  # Default version for non-tag builds
