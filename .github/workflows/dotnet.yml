@@ -9,18 +9,35 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
     - uses: actions/checkout@v4
 
-    - name: Extract Version from Tag
-      id: get_version
+    - name: Extract Version from Tag (Unix)
+      id: get_version_unix
+      if: ${{ matrix.os != 'windows-latest' }}
       run: |
         if [[ "${{ github.ref }}" == refs/tags/* ]]; then
           echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
         else
           echo "VERSION=0.0.1" >> $GITHUB_ENV  # Default version for non-tag builds
         fi
+
+    - name: Extract Version from Tag (Windows)
+      id: get_version_windows
+      if: ${{ matrix.os == 'windows-latest' }}
+      run: |
+        if ($env:GITHUB_REF -like "refs/tags/*") {
+            $version = $env:GITHUB_REF.Substring(10)  # Remove the "refs/tags/" prefix
+            echo "VERSION=$version" >> $env:GITHUB_ENV
+        } else {
+            echo "VERSION=0.0.1" >> $env:GITHUB_ENV  # Default version for non-tag builds
+        }
+
+
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
@@ -39,7 +56,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: dotnet-build
+        name: dotnet-build-${{ matrix.os }}
         path: publish
 
   release:
@@ -49,20 +66,39 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Download Artifact
+    - name: Download Artifacts
       uses: actions/download-artifact@v4
       with:
-        name: dotnet-build
-        path: publish
+        name: dotnet-build-ubuntu-latest
+        path: publish/ubuntu
+      continue-on-error: true
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: dotnet-build-windows-latest
+        path: publish/windows
+      continue-on-error: true
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: dotnet-build-macos-latest
+        path: publish/macos
+      continue-on-error: true
 
     - name: Archive Release
-      run: zip -r release.zip publish
+      run: |
+        zip -r release-ubuntu.zip publish/ubuntu
+        zip -r release-windows.zip publish/windows
+        zip -r release-macos.zip publish/macos
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.VERSION }}
         name: Release ${{ env.VERSION }}
-        files: release.zip
+        files: |
+          release-ubuntu.zip
+          release-windows.zip
+          release-macos.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
