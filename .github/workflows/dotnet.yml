@@ -32,10 +32,11 @@ jobs:
       run: |
         if ($env:GITHUB_REF -like "refs/tags/*") {
             $version = $env:GITHUB_REF.Substring(10)  # Remove the "refs/tags/" prefix
-            Write-Host "VERSION=$version" | Out-File -Append -FilePath $env:GITHUB_ENV
+            echo "VERSION=$version" >> $env:GITHUB_ENV
         } else {
-            Write-Host "VERSION=0.0.1" | Out-File -Append -FilePath $env:GITHUB_ENV  # Default version for non-tag builds
+            echo "VERSION=0.0.1" >> $env:GITHUB_ENV  # Default version for non-tag builds
         }
+
 
 
     - name: Setup .NET
