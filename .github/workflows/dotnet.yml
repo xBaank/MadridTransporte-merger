@@ -10,40 +10,44 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Extract Version from Tag
-      id: get_version
-      run: |
-        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-        else
-          echo "VERSION=0.0.1" >> $GITHUB_ENV  # Default version for non-tag builds
-        fi
-
+    - uses: actions/checkout@v2
+    
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v2
       with:
-        dotnet-version: 9.0.x
+        dotnet-version: '6.0.x'
 
     - name: Restore dependencies
       run: dotnet restore Merger.sln
 
-    - name: Publish linux
+    - name: Build for Linux
+      run: dotnet build --configuration Release --no-restore /p:Version=${{ env.VERSION }} Merger.sln
+
+    - name: Publish for Linux
       run: dotnet publish -c Release --os linux -o publish/linux /p:Version=${{ env.VERSION }} Merger.sln
       
-    - name: Publish windows
+    - name: Build for Windows
+      run: dotnet build --configuration Release --no-restore /p:Version=${{ env.VERSION }} Merger.sln
+
+    - name: Publish for Windows
       run: dotnet publish -c Release --os win -o publish/win /p:Version=${{ env.VERSION }} Merger.sln
-      
-    - name: Publish osx
+
+    - name: Build for macOS
+      run: dotnet build --configuration Release --no-restore /p:Version=${{ env.VERSION }} Merger.sln
+
+    - name: Publish for macOS
       run: dotnet publish -c Release --os osx-x64 -o publish/osx /p:Version=${{ env.VERSION }} Merger.sln
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: dotnet-build
-        path: publish
+        path: |
+          publish/linux
+          publish/win
+          publish/osx
 
   release:
     needs: build
