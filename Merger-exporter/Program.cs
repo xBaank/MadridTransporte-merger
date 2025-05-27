@@ -3,6 +3,9 @@ using System.Runtime.CompilerServices;
 using ConsoleAppFramework;
 using Merger_exporter;
 using nietras.SeparatedValues;
+using ZLinq;
+
+[assembly: ZLinq.ZLinqDropInAttribute("", ZLinq.DropInGenerateTypes.Everything)]
 
 List<(string name, string url)> gtfsFilesUrls =
 [
@@ -89,7 +92,7 @@ await ConsoleApp.RunAsync(
                     {
                         var files = await item.GetFoldersFilesAsync(token)
                             .ToListAsync(cancellationToken: token);
-                        var grouped = files.GroupBy(i => Path.GetFileName(i)).ToList();
+                        var grouped = files.AsValueEnumerable().GroupBy(i => Path.GetFileName(i)).ToList();
 
                         var folder = Directory.CreateDirectory(
                             Path.Combine(destinationFolder, item.Name)
